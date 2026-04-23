@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EchoDict - Luyện nghe thông minh & Phân đoạn âm thanh</title>
+    <meta name="description" content="Ứng dụng web miễn phí giúp luyện nghe tiếng Anh và các ngôn ngữ khác bằng cách tự động phân đoạn âm thanh, lặp lại thông minh.">
+    <meta name="keywords" content="luyện nghe, dictation, audio segment, workaudiobook, học tiếng anh">
+    <meta property="og:title" content="EchoDict - Luyện nghe thông minh">
+    <meta property="og:description" content="Tự động phân đoạn âm thanh, lặp lại thông minh để luyện nghe hiệu quả hơn.">
+    <meta name="theme-color" content="#0f172a">
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <header style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+            <div style="text-align: left;">
+                <h1 style="margin: 0; display: flex; align-items: center; gap: 1rem;">
+                    EchoDict 
+                    <span id="project-name-display" style="font-size: 1rem; font-weight: 400; color: var(--accent-color); background: rgba(56, 189, 248, 0.1); padding: 0.2rem 0.8rem; border-radius: 2rem; display: none;"></span>
+                </h1>
+                <p style="margin: 0; opacity: 0.8;">Luyện nghe thông minh & Phân đoạn âm thanh</p>
+            </div>
+            <div style="display: flex; gap: 0.8rem; align-items: center;">
+                <button id="shortcuts-btn" class="btn" title="Cài đặt phím tắt" style="padding: 0.75rem; background: rgba(255,255,255,0.05);">
+                    <i class="fas fa-keyboard"></i>
+                </button>
+                <button id="home-btn" class="btn hidden" title="Quay lại trang chủ">
+                    <i class="fas fa-home"></i> Trang chủ
+                </button>
+            </div>
+        </header>
+
+        <!-- Modal Cài đặt phím tắt -->
+        <div id="shortcuts-modal" class="modal hidden" style="position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 1000; backdrop-filter: blur(8px);">
+            <div class="modal-content glass" style="width: 450px; padding: 2rem; border-radius: 1.5rem; border: 1px solid var(--glass-border); box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                    <h2 style="margin: 0; font-size: 1.5rem; color: var(--accent-color);"><i class="fas fa-keyboard"></i> Phím tắt</h2>
+                    <button id="close-shortcuts" style="background: none; border: none; color: white; cursor: pointer; font-size: 1.2rem; opacity: 0.6;"><i class="fas fa-times"></i></button>
+                </div>
+                
+                <div id="shortcuts-list" style="display: flex; flex-direction: column; gap: 0.8rem; max-height: 400px; overflow-y: auto; padding-right: 10px;">
+                    <!-- Danh sach phím tắt se duoc render tu JS -->
+                </div>
+
+                <div style="margin-top: 2rem; padding-top: 1rem; border-top: 1px solid rgba(255,255,255,0.1); display: flex; justify-content: space-between; align-items: center;">
+                    <span style="font-size: 0.75rem; color: var(--text-secondary);">Click vào phím để đổi</span>
+                    <button class="btn" id="reset-shortcuts" style="font-size: 0.8rem; padding: 0.4rem 0.8rem; opacity: 0.7;">Mặc định</button>
+                </div>
+            </div>
+        </div>
+
+        <main class="main-card">
+            <!-- Upload Section -->
+            <div id="upload-section">
+                <label for="audio-upload" class="upload-area">
+                    <i class="fas fa-cloud-upload-alt"></i>
+                    <h2>Tải file âm thanh</h2>
+                    <p>Hỗ trợ định dạng MP3, WAV, M4A...</p>
+                    <input type="file" id="audio-upload" accept="audio/*" class="hidden">
+                </label>
+
+                <!-- Danh sách bài học cũ -->
+                <div id="recent-lessons-section" class="hidden" style="margin-top: 2.5rem; border-top: 1px solid var(--glass-border); padding-top: 2rem;">
+                    <h3 style="margin-bottom: 1.2rem; font-size: 1.1rem; color: var(--accent-color); display: flex; align-items: center; gap: 0.8rem;">
+                        <i class="fas fa-history"></i> Bài học gần đây
+                    </h3>
+                    <div id="recent-lessons-list" style="display: grid; gap: 1rem;">
+                        <!-- Bài học sẽ được chèn vào đây bằng JS -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Player Section (Hidden by default) -->
+            <div id="player-section" class="hidden">
+                <div id="waveform-container" style="overflow-x: auto; cursor: crosshair;">
+                    <canvas id="waveform-canvas"></canvas>
+                </div>
+
+                <div class="controls" style="margin-top: 1rem; border-bottom: 1px solid var(--glass-border); padding-bottom: 1rem; margin-bottom: 1rem;">
+                    <div style="display: flex; gap: 1.5rem; align-items: flex-start; flex-wrap: wrap;">
+                        
+                        <!-- Nhom nut thao tac nhanh -->
+                        <div style="display: flex; gap: 0.8rem;">
+                            <button class="btn" id="auto-detect-btn" title="Tự động tìm khoảng lặng">
+                                <i class="fas fa-magic"></i> Tự động cắt
+                            </button>
+                            <button class="btn" id="clear-all-btn" title="Xóa sạch tất cả các điểm">
+                                <i class="fas fa-trash-alt"></i> Xóa tất cả
+                            </button>
+                        </div>
+
+                        <!-- Zoom Control -->
+                        <div class="control-group" style="flex: 1; min-width: 200px;">
+                            <label for="zoom-control">
+                                Độ dãn sóng âm: <span id="zoom-val" style="color: var(--accent-color); font-weight: bold;">80px/s</span>
+                            </label>
+                            <input type="range" id="zoom-control" min="20" max="150" step="10" value="80">
+                        </div>
+
+                        <!-- Nhom dieu khien chuot rieng biet -->
+                        <div class="mouse-controls-box" style="background: rgba(15, 23, 42, 0.4); padding: 0.8rem; border-radius: 0.8rem; border: 1px solid var(--glass-border); display: flex; flex-direction: column; gap: 0.6rem;">
+                            <label class="check-item" style="display: flex; align-items: center; gap: 0.8rem; cursor: pointer; font-size: 0.85rem;">
+                                <input type="checkbox" id="allow-bookmark">
+                                <span style="color: #4ade80;"><i class="fas fa-mouse-pointer"></i> Click trái: **Đánh dấu chỗ**</span>
+                            </label>
+                            <label class="check-item" style="display: flex; align-items: center; gap: 0.8rem; cursor: pointer; font-size: 0.85rem;">
+                                <input type="checkbox" id="allow-segment">
+                                <span style="color: #fbbf24;"><i class="fas fa-hand-pointer"></i> Shift+Click: **Thêm điểm ngắt**</span>
+                            </label>
+                            <label class="check-item" style="display: flex; align-items: center; gap: 0.8rem; cursor: pointer; font-size: 0.85rem;">
+                                <input type="checkbox" id="allow-delete">
+                                <span style="color: #f87171;"><i class="fas fa-eraser"></i> Chuột phải: **Xóa điểm**</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="segment-list" id="segment-list">
+                    <!-- Segments will be added here -->
+                </div>
+
+                <div class="controls" style="display: flex; flex-direction: column; align-items: center; gap: 0;">
+                    <!-- Playback Navigation Group -->
+                    <div class="playback-group" style="display: flex; flex-direction: column; align-items: center; margin-bottom: 1.5rem; width: 100%;">
+                        <div class="playback-controls" style="display: flex; gap: 0.8rem; align-items: center; justify-content: center; margin-bottom: 0.5rem;">
+                            <button class="btn" id="prev-btn" title="Đoạn trước">
+                                <i class="fas fa-backward-step"></i>
+                            </button>
+                            <button class="btn btn-primary" id="play-btn" style="min-width: 120px;">
+                                <i class="fas fa-play"></i> <span>Phát</span>
+                            </button>
+                            <button class="btn" id="next-btn" title="Đoạn tiếp theo">
+                                <i class="fas fa-forward-step"></i>
+                            </button>
+                        </div>
+
+                        <div class="bookmark-nav" style="display: inline-flex; gap: 0.8rem; align-items: center; justify-content: center; background: rgba(255, 255, 255, 0.05); padding: 4px 12px; border-radius: 2rem; border: 1px solid rgba(255, 255, 255, 0.08); margin-top: 0.2rem;">
+                            <button class="btn" id="prev-bookmark-btn" title="Điểm dấu trước" style="color: #4ade80; border: none; background: none; padding: 6px 8px; display: flex; align-items: center; gap: 4px; cursor: pointer;">
+                                <i class="fas fa-chevron-left" style="font-size: 0.7rem;"></i>
+                                <i class="fas fa-bookmark" style="font-size: 0.85rem;"></i>
+                            </button>
+                            
+                            <button class="btn" id="toggle-bookmark-btn" title="Thêm/Bỏ ghim tại chỗ (Phím B)" style="color: var(--bg-color); background: #4ade80; border: none; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s;">
+                                <i class="fas fa-bookmark" style="font-size: 0.85rem;"></i>
+                            </button>
+
+                            <button class="btn" id="next-bookmark-btn" title="Điểm dấu tiếp" style="color: #4ade80; border: none; background: none; padding: 6px 8px; display: flex; align-items: center; gap: 4px; cursor: pointer;">
+                                <i class="fas fa-bookmark" style="font-size: 0.85rem;"></i>
+                                <i class="fas fa-chevron-right" style="font-size: 0.7rem;"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="settings-bar" style="display: flex; gap: 2.5rem; align-items: flex-end; justify-content: center; width: 100%; flex-wrap: wrap; padding: 1rem; background: rgba(255, 255, 255, 0.02); border-radius: 12px;">
+                        <!-- Volume Control -->
+                        <div class="control-group" style="flex: 1; min-width: 150px; max-width: 200px; margin: 0;">
+                            <label for="volume-control" style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 0.5rem;">
+                                <span style="color: var(--text-secondary);">Âm lượng</span> <span id="volume-val" style="color: var(--accent-color); font-weight: 600;">100%</span>
+                            </label>
+                            <input type="range" id="volume-control" min="0" max="1" step="0.01" value="1" style="width: 100%;">
+                        </div>
+
+                        <!-- Speed Control -->
+                        <div class="control-group" style="flex: 1; min-width: 150px; max-width: 200px; margin: 0;">
+                            <label for="speed-control" style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 0.5rem;">
+                                <span style="color: var(--text-secondary);">Tốc độ</span> <span id="speed-val" style="color: var(--accent-color); font-weight: 600;">1.0x</span>
+                            </label>
+                            <input type="range" id="speed-control" min="0.5" max="2" step="0.1" value="1" style="width: 100%;">
+                        </div>
+
+                        <!-- Auto-Replay Toggle -->
+                        <div class="control-group" style="margin: 0; padding-bottom: 5px;">
+                            <label class="toggle-container" style="display: flex; align-items: center; gap: 0.8rem; cursor: pointer;">
+                                <span style="color: var(--text-secondary); font-size: 0.85rem;">Tự động lặp lại</span>
+                                <input type="checkbox" id="auto-replay" class="hidden">
+                                <div class="toggle-switch"></div>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="margin-top: 1.5rem; text-align: center;">
+                    <button class="btn" id="change-file-btn">
+                        <i class="fas fa-exchange-alt"></i> Đổi file khác
+                    </button>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

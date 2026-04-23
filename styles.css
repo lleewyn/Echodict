@@ -1,0 +1,310 @@
+:root {
+    --bg-color: #0f172a;
+    --card-bg: rgba(30, 41, 59, 0.7);
+    --accent-color: #38bdf8;
+    --accent-hover: #0ea5e9;
+    --text-primary: #f8fafc;
+    --text-secondary: #94a3b8;
+    --glass-border: rgba(255, 255, 255, 0.1);
+    --waveform-bg: #1e293b;
+    --waveform-progress: #38bdf8;
+    --segment-marker: #fbbf24;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background-color: var(--bg-color);
+    color: var(--text-primary);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 2rem;
+    background-image: 
+        radial-gradient(circle at 0% 0%, rgba(56, 189, 248, 0.15) 0%, transparent 50%),
+        radial-gradient(circle at 100% 100%, rgba(139, 92, 246, 0.15) 0%, transparent 50%);
+}
+
+.container {
+    max-width: none;
+    width: 80%;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+header {
+    text-align: center;
+    margin-bottom: 1rem;
+}
+
+header h1 {
+    font-size: 2.5rem;
+    font-weight: 800;
+    background: linear-gradient(to right, #38bdf8, #818cf8);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 0.5rem;
+}
+
+header p {
+    color: var(--text-secondary);
+}
+
+.main-card {
+    background: var(--card-bg);
+    backdrop-filter: blur(12px);
+    border: 1px solid var(--glass-border);
+    border-radius: 1.5rem;
+    padding: 2rem;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+}
+
+/* File Upload */
+.upload-area {
+    border: 2px dashed var(--glass-border);
+    border-radius: 1rem;
+    padding: 3rem;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    margin-bottom: 1.5rem;
+}
+
+.upload-area:hover {
+    border-color: var(--accent-color);
+    background: rgba(56, 189, 248, 0.05);
+}
+
+.upload-area i {
+    font-size: 3rem;
+    color: var(--accent-color);
+    margin-bottom: 1rem;
+}
+
+/* Waveform */
+#waveform-container {
+    width: 100%;
+    height: 160px;
+    background: var(--waveform-bg);
+    border-radius: 0.75rem;
+    position: relative;
+    overflow-x: auto;
+    overflow-y: hidden;
+    margin-bottom: 1.5rem;
+}
+
+/* Custom Scrollbar cho Waveform - Lam cho ro rang hon */
+#waveform-container::-webkit-scrollbar {
+    height: 12px; /* Tang do day len 12px */
+}
+
+#waveform-container::-webkit-scrollbar-track {
+    background: rgba(15, 23, 42, 0.8); /* Nen toi hon de noi bat thanh cuon */
+    border-radius: 6px;
+    margin: 0 10px;
+}
+
+#waveform-container::-webkit-scrollbar-thumb {
+    background: linear-gradient(to bottom, #38bdf8, #0ea5e9); /* Gradient cho dep */
+    border-radius: 6px;
+    border: 2px solid #1e293b; /* Vien de tach biet voi nen */
+    box-shadow: 0 0 10px rgba(56, 189, 248, 0.3);
+}
+
+#waveform-container::-webkit-scrollbar-thumb:hover {
+    background: #7dd3fc; /* Sang len khi di chuot vao */
+    box-shadow: 0 0 15px rgba(56, 189, 248, 0.5);
+}
+
+canvas {
+    display: block;
+    height: 100%;
+    /* Khong cho phep canvas bi co lai duoi bat ky hinh thuc nao */
+    width: auto !important;
+    max-width: none !important;
+    min-width: 100%; 
+    image-rendering: auto;
+}
+
+.segment-list {
+    display: flex;
+    gap: 0.5rem;
+    overflow-x: auto;
+    padding-bottom: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.segment-item {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--glass-border);
+    padding: 0.5rem 1rem;
+    border-radius: 2rem;
+    font-size: 0.875rem;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.segment-item:hover {
+    background: rgba(56, 189, 248, 0.2);
+}
+
+.segment-item.active {
+    background: var(--accent-color);
+    color: var(--bg-color);
+    font-weight: 600;
+}
+
+/* Controls */
+.controls {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1.5rem;
+    align-items: center;
+}
+
+.playback-controls {
+    display: flex;
+    justify-content: center;
+    gap: 1rem;
+    grid-column: 1 / -1;
+}
+
+/* Style cho cac nut icon trong danh sach */
+.btn-icon {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: var(--text-secondary);
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.btn-icon:hover {
+    transform: translateY(-2px);
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.btn-icon.edit:hover {
+    color: var(--accent-color);
+    border-color: var(--accent-color);
+    box-shadow: 0 0 10px rgba(56, 189, 248, 0.3);
+}
+
+.btn-icon.delete:hover {
+    color: #f87171;
+    border-color: #f87171;
+    box-shadow: 0 0 10px rgba(248, 113, 113, 0.3);
+}
+
+.btn {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--glass-border);
+    color: white;
+    padding: 0.75rem 1.5rem;
+    border-radius: 0.75rem;
+    cursor: pointer;
+    font-weight: 600;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    transform: translateY(-2px);
+}
+
+.btn-primary {
+    background: var(--accent-color);
+    color: var(--bg-color);
+}
+
+.btn-primary:hover {
+    background: var(--accent-hover);
+}
+
+.control-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+label {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    display: flex;
+    justify-content: space-between;
+}
+
+input[type="range"] {
+    width: 100%;
+    accent-color: var(--accent-color);
+}
+
+.toggle-container {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    cursor: pointer;
+}
+
+.toggle-switch {
+    width: 44px;
+    height: 24px;
+    background: #334155;
+    border-radius: 12px;
+    position: relative;
+    transition: all 0.3s;
+}
+
+.toggle-switch::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 20px;
+    height: 20px;
+    background: white;
+    border-radius: 50%;
+    transition: all 0.3s;
+}
+
+input[type="checkbox"]:checked + .toggle-switch {
+    background: var(--accent-color);
+}
+
+input[type="checkbox"]:checked + .toggle-switch::after {
+    transform: translateX(20px);
+}
+
+.hidden {
+    display: none !important;
+}
+
+.modal {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.main-card {
+    animation: fadeIn 0.6s ease-out;
+}
