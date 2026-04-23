@@ -1085,3 +1085,14 @@ toggleBookmarkBtn.onclick = () => {
     toggleBookmark(currentTime);
     saveState();
 };
+
+function addManualMarker(time) {
+    if (!audioBuffer) return;
+    // Tránh thêm điểm quá sát nhau (trong khoảng 0.1s)
+    if (segments.some(s => Math.abs(s.start - time) < 0.1)) return;
+    
+    segments.push({ start: time, end: 0 });
+    recalculateSegments();
+    renderSegmentList();
+    drawWaveform();
+}
