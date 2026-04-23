@@ -52,6 +52,10 @@ const shortcutsModal = document.getElementById('shortcuts-modal');
 const closeShortcuts = document.getElementById('close-shortcuts');
 const shortcutsList = document.getElementById('shortcuts-list');
 const resetShortcutsBtn = document.getElementById('reset-shortcuts');
+const selectLibraryBtn = document.getElementById('select-library-btn');
+const libraryPathDisplay = document.getElementById('library-path-display');
+
+let libraryPath = localStorage.getItem('echoDict_libraryPath') || null;
 
 // --- Shortcut Settings ---
 const defaultShortcuts = {
@@ -145,6 +149,38 @@ window.addEventListener('keydown', (e) => {
         }
     }
 });
+
+// --- Library Management ---
+
+if (selectLibraryBtn) {
+    selectLibraryBtn.onclick = async () => {
+        if (!window.electronAPI) {
+            alert("Tính năng này chỉ hỗ trợ trên ứng dụng Desktop.");
+            return;
+        }
+        const path = await window.electronAPI.selectFolder();
+        if (path) {
+            libraryPath = path;
+            localStorage.setItem('echoDict_libraryPath', path);
+            updateLibraryUI();
+            loadRecentLessons();
+        }
+    };
+}
+
+function updateLibraryUI() {
+    if (!libraryPathDisplay) return;
+    if (libraryPath) {
+        libraryPathDisplay.innerText = libraryPath;
+        libraryPathDisplay.style.color = 'var(--accent-color)';
+        libraryPathDisplay.style.opacity = '1';
+    } else {
+        libraryPathDisplay.innerText = 'Hãy chọn thư mục để lưu trữ bài học vĩnh viễn trên máy tính';
+        libraryPathDisplay.style.color = '';
+        libraryPathDisplay.style.opacity = '0.7';
+    }
+}
+
 const dbName = "EchoDictDB_v2";
 const storeName = "Projects";
 
@@ -164,44 +200,97 @@ function initDB() {
 
 async function saveState(fileBlob = null, fileName = "") {
     if (!activeProjectId && !fileBlob) return;
-    const db = await initDB();
-    const transaction = db.transaction(storeName, "readwrite");
-    const store = transaction.objectStore(storeName);
-    let project;
-    if (fileBlob) {
-        activeProjectId = "proj_" + Date.now();
-        project = {
-            id: activeProjectId,
-            name: fileName || "Bài học mới",
-            file: fileBlob,
-            segments: segments,
-            bookmarks: bookmarks,
-            zoom: pixelsPerSecond,
-            lastModified: Date.now()
-        };
+    
+    const projectData = {
+        id: activeProjectId || "proj_" + Date.now(),
+        name: fileName || projectNameDisplay.innerText || "Bài học mới",
+        segments: segments,
+        bookmarks: bookmarks,
+        zoom: pixelsPerSecond,
+        lastModified: Date.now(),
+        audioFileName: fileName || (activeProjectId ? activeProjectId.split('_')[1] + ".mp3" : "audio.mp3")
+    };
+
+    if (libraryPath && window.electronAPI) {
+        // Lưu vào thư mục máy tính
+        let audioData = null;
+        if (fileBlob) {
+            const arrayBuffer = await fileBlob.arrayBuffer();
+            audioData = arrayBuffer;
+            activeProjectId = "fs_" + projectData.id;
+            projectData.id = activeProjectId;
+        }
+        
+        const result = await window.electronAPI.saveProject({
+            folderPath: libraryPath,
+            fileName: projectData.audioFileName,
+            audioData: audioData,
+            projectData: projectData
+        });
+
+        if (result.success) {
+            projectNameDisplay.innerText = projectData.name;
+            projectNameDisplay.style.display = 'inline-block';
+            localStorage.setItem('echoDict_activeProjectId', projectData.id);
+        } else {
+            alert("Lỗi khi lưu vào thư mục: " + result.error);
+        }
     } else {
-        const request = store.get(activeProjectId);
-        project = await new Promise(r => { request.onsuccess = () => r(request.result); });
-        if (!project) return;
-        project.segments = segments;
-        project.bookmarks = bookmarks;
-        project.zoom = pixelsPerSecond;
-        project.lastModified = Date.now();
-    }
-    await store.put(project);
-    if (project.name) {
-        projectNameDisplay.innerText = project.name;
-        projectNameDisplay.style.display = 'inline-block';
-        localStorage.setItem('echoDict_activeProjectId', activeProjectId);
+        // Lưu vào IndexedDB (cũ)
+        const db = await initDB();
+        const transaction = db.transaction(storeName, "readwrite");
+        const store = transaction.objectStore(storeName);
+        let project;
+        if (fileBlob) {
+            activeProjectId = "proj_" + Date.now();
+            project = {
+                ...projectData,
+                id: activeProjectId,
+                file: fileBlob
+            };
+        } else {
+            const request = store.get(activeProjectId);
+            project = await new Promise(r => { request.onsuccess = () => r(request.result); });
+            if (!project) return;
+            Object.assign(project, projectData);
+        }
+        await store.put(project);
+        if (project.name) {
+            projectNameDisplay.innerText = project.name;
+            projectNameDisplay.style.display = 'inline-block';
+            localStorage.setItem('echoDict_activeProjectId', activeProjectId);
+        }
     }
 }
 
 async function loadRecentLessons() {
+    let projects = [];
+    
+    // 1. Load từ Library Folder (ưu tiên)
+    if (libraryPath && window.electronAPI) {
+        projects = await window.electronAPI.getLibrary(libraryPath);
+    }
+    
+    // 2. Load từ IndexedDB (fallback hoặc song song)
     const db = await initDB();
     const store = db.transaction(storeName, "readonly").objectStore(storeName);
-    const projects = await new Promise(r => { 
+    const idbProjects = await new Promise(r => { 
         const req = store.getAll(); req.onsuccess = () => r(req.result); 
     });
+    
+    if (idbProjects) {
+        idbProjects.forEach(p => {
+            if (!projects.find(lp => lp.id === p.id)) {
+                projects.push({
+                    id: p.id,
+                    name: p.name,
+                    lastModified: p.lastModified,
+                    segmentCount: p.segments.length,
+                    isIndexedDB: true
+                });
+            }
+        });
+    }
     
     if (projects && projects.length > 0) {
         recentLessonsSection.classList.remove('hidden');
@@ -216,24 +305,25 @@ async function loadRecentLessons() {
             item.style.display = 'flex';
             item.style.justifyContent = 'space-between';
             item.style.alignItems = 'center';
-            item.style.border = '1px solid var(--glass-border)';
+            item.style.border = proj.isIndexedDB ? '1px solid rgba(255,255,255,0.1)' : '1px solid var(--glass-border)';
             item.style.transition = 'all 0.3s ease';
             
             const contentId = `name-${proj.id}`;
             const btnId = `edit-btn-${proj.id}`;
+            const tag = proj.isIndexedDB ? '<span style="font-size: 0.6rem; background: rgba(255,255,255,0.1); padding: 1px 4px; border-radius: 4px; margin-left: 5px;">IDB</span>' : '';
             
             item.innerHTML = `
                 <div style="flex: 1; padding-right: 1rem;" class="project-info" data-id="${proj.id}">
-                    <div id="${contentId}" class="project-name" style="font-weight: 600; color: var(--text-primary); outline: none; border-radius: 4px; padding: 2px 4px; cursor: pointer;">${proj.name}</div>
+                    <div id="${contentId}" class="project-name" style="font-weight: 600; color: var(--text-primary); outline: none; border-radius: 4px; padding: 2px 4px; cursor: pointer;">${proj.name} ${tag}</div>
                     <div style="font-size: 0.75rem; color: var(--text-secondary); pointer-events: none;">
-                        ${proj.segments.length} đoạn • ${new Date(proj.lastModified).toLocaleDateString()}
+                        ${proj.segmentCount} đoạn • ${new Date(proj.lastModified).toLocaleDateString()}
                     </div>
                 </div>
                 <div style="display: flex; gap: 0.8rem;">
-                    <button id="${btnId}" class="btn-icon edit" onclick="event.stopPropagation(); handleEditClick('${proj.id}')" title="Đổi tên">
+                    ${!proj.isIndexedDB ? `<button id="${btnId}" class="btn-icon edit" onclick="event.stopPropagation(); handleEditClick('${proj.id}')" title="Đổi tên">
                         <i class="fas fa-edit"></i>
-                    </button>
-                    <button class="btn-icon delete" onclick="event.stopPropagation(); deleteProject('${proj.id}')" title="Xóa">
+                    </button>` : ''}
+                    <button class="btn-icon delete" onclick="event.stopPropagation(); deleteProject('${proj.id}', ${proj.isIndexedDB || false}, '${proj.folderName || ''}')" title="Xóa">
                         <i class="fas fa-trash"></i>
                     </button>
                 </div>
@@ -243,12 +333,12 @@ async function loadRecentLessons() {
             infoArea.onclick = () => {
                 const nameEl = document.getElementById(contentId);
                 if (nameEl.contentEditable !== "true") {
-                    loadProject(proj.id);
+                    loadProject(proj.id, proj.isIndexedDB, proj.folderName, proj.audioFileName);
                 }
             };
 
             item.onmouseover = () => item.style.borderColor = 'var(--accent-color)';
-            item.onmouseout = () => item.style.borderColor = 'var(--glass-border)';
+            item.onmouseout = () => item.style.borderColor = proj.isIndexedDB ? 'rgba(255,255,255,0.1)' : 'var(--glass-border)';
             recentLessonsList.appendChild(item);
         });
     } else { recentLessonsSection.classList.add('hidden'); }
@@ -317,10 +407,56 @@ async function cancelInlineEdit(id, originalName) {
     btnEl.style.color = "";
 }
 
-async function loadProject(id) {
-    const db = await initDB();
-    const store = db.transaction(storeName, "readonly").objectStore(storeName);
-    const proj = await new Promise(r => { const req = store.get(id); req.onsuccess = () => r(req.result); });
+async function loadProject(id, isIndexedDB = false, folderName = "", audioFileName = "") {
+    let proj;
+    if (!isIndexedDB && libraryPath && window.electronAPI) {
+        // Load từ filesystem
+        const projects = await window.electronAPI.getLibrary(libraryPath);
+        const pInfo = projects.find(p => p.id === id);
+        if (pInfo) {
+            const configPath = libraryPath + "/" + pInfo.folderName + "/config.json";
+            const audioPath = libraryPath + "/" + pInfo.folderName + "/" + pInfo.audioFileName;
+            
+            // Re-fetch config to get segments and bookmarks
+            const db = await initDB(); // Not really DB, but we need the data
+            // We need a way to read JSON file content... let's assume getLibrary returns enough or add a read function
+            // For now, I'll assume I need to add a readJson handler or main process returns full data in getLibrary
+            
+            // Wait, I should probably update getLibrary to return full config or add getProjectConfig
+            // Let's just use the audio loader to load the blob
+            const audioBufferData = await window.electronAPI.loadAudioFile(audioPath);
+            if (audioBufferData) {
+                // We need the config data. Let's assume I'll update main.js to provide it or I'll fetch it here.
+                // Actually, I'll just update main.js to return the full config in getLibrary for simplicity.
+                // Re-calling getLibrary is fine for now as it's local and fast.
+                
+                // Let's assume proj is what we need
+                proj = {
+                    id: id,
+                    name: pInfo.name,
+                    file: new Blob([audioBufferData]),
+                    segments: [], // Will be filled below
+                    bookmarks: [],
+                    zoom: 80
+                };
+                
+                // Since I didn't want to change too much in main.js, I'll just re-read the config file via loadAudioFile (it works for any file)
+                const configData = await window.electronAPI.loadAudioFile(libraryPath + "/" + pInfo.folderName + "/config.json");
+                if (configData) {
+                    const config = JSON.parse(new TextDecoder().decode(configData));
+                    proj.segments = config.segments;
+                    proj.bookmarks = config.bookmarks;
+                    proj.zoom = config.zoom;
+                }
+            }
+        }
+    } else {
+        // Load từ IndexedDB
+        const db = await initDB();
+        const store = db.transaction(storeName, "readonly").objectStore(storeName);
+        proj = await new Promise(r => { const req = store.get(id); req.onsuccess = () => r(req.result); });
+    }
+
     if (proj) {
         activeProjectId = proj.id;
         localStorage.setItem('echoDict_activeProjectId', id);
@@ -338,10 +474,14 @@ async function loadProject(id) {
     }
 }
 
-async function deleteProject(id) {
+async function deleteProject(id, isIndexedDB = false, folderName = "") {
     if (confirm('Bạn có chắc muốn xóa bài học này?')) {
-        const db = await initDB();
-        await db.transaction(storeName, "readwrite").objectStore(storeName).delete(id);
+        if (isIndexedDB) {
+            const db = await initDB();
+            await db.transaction(storeName, "readwrite").objectStore(storeName).delete(id);
+        } else if (libraryPath && window.electronAPI) {
+            await window.electronAPI.deleteProject(libraryPath, folderName);
+        }
         loadRecentLessons();
     }
 }
@@ -437,8 +577,16 @@ window.addEventListener('DOMContentLoaded', async () => {
     allowSegmentCheck.checked = savedSegmentCheck;
     allowDeleteCheck.checked = savedDeleteCheck;
 
+    updateLibraryUI();
     await loadRecentLessons();
-    if (lastActiveId) loadProject(lastActiveId);
+    if (lastActiveId) {
+        // Cần xác định id này thuộc IDB hay Filesystem
+        if (lastActiveId.startsWith('fs_')) {
+            loadProject(lastActiveId, false);
+        } else {
+            loadProject(lastActiveId, true);
+        }
+    }
 });
 
 // Save interaction settings on change

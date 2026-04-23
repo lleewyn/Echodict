@@ -3,3 +3,5 @@ dist/
 .DS_Store
 *.log
 package-lock.json
+EchoDict-win32-x64/
+create_shortcut.ps1
