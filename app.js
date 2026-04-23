@@ -15,6 +15,7 @@ let pixelsPerSecond = 80;
 let activeProjectId = null;
 let cachedWaveformData = null;
 let draggingMarkerIdx = -1;
+let wasDragging = false;
 
 // DOM Elements
 const audioUpload = document.getElementById('audio-upload');
@@ -604,8 +605,11 @@ canvas.addEventListener('mousedown', (e) => {
     const idx = segments.findIndex((s, i) => i > 0 && Math.abs(s.start - time) < threshold);
     if (idx !== -1) {
         draggingMarkerIdx = idx;
+        wasDragging = true;
         canvas.style.cursor = 'col-resize';
         e.preventDefault();
+    } else {
+        wasDragging = false;
     }
 });
 
@@ -642,7 +646,10 @@ window.addEventListener('mouseup', () => {
 });
 
 canvas.addEventListener('click', (e) => {
-    if (!audioBuffer || draggingMarkerIdx !== -1) return; 
+    if (!audioBuffer || draggingMarkerIdx !== -1 || wasDragging) {
+        wasDragging = false; // Reset sau khi đã chặn
+        return; 
+    }
     const rect = canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const scrollLeft = waveformContainer.scrollLeft;
